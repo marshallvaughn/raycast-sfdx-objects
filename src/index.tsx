@@ -1,4 +1,4 @@
-import { Icon, List } from "@raycast/api";
+import { Action, ActionPanel, Icon, List } from "@raycast/api";
 import { useEffect, useState } from "react";
 import { QueryResult, Record } from "jsforce";
 import { AuthInfo, Connection, ConfigAggregator, OrgConfigProperties } from "@salesforce/core";
@@ -76,6 +76,50 @@ export default function Command(): JSX.Element {
   );
 }
 
+interface SetupUrlMapItem {
+  name: SetupSubpath;
+  label: string;
+  icon: Icon;
+}
+
+const setupUrlMap: SetupUrlMapItem[] = [
+  {
+    name: 'Details',
+    label: 'Details',
+    icon: Icon.Info
+  },
+  {
+    name: 'FieldsAndRelationships',
+    label: 'Fields & Relationships',
+    icon: Icon.Filter
+  },
+  {
+    name: 'Layouts',
+    label: 'Layouts',
+    icon: Icon.AppWindowList
+  },
+  {
+    name: 'LightningPages',
+    label: 'Lightning Pages',
+    icon: Icon.AppWindowGrid3x3
+  },
+  {
+    name: 'Limits',
+    label: 'Limits',
+    icon: Icon.Gauge
+  },
+  {
+    name: 'Triggers',
+    label: 'Triggers',
+    icon: Icon.Bolt
+  },
+  {
+    name: 'FlowTriggers',
+    label: 'Flow Triggers',
+    icon: Icon.Bolt
+  }
+]
+
 function RecordListItem(props: { item: EntityDefinition, index: number }) {
   return (
     <List.Item
@@ -126,6 +170,32 @@ function RecordListItem(props: { item: EntityDefinition, index: number }) {
           }
         />
       }
+
+      actions={
+        <ActionPanel title={'Actions'}>
+          <ActionPanel.Section title={`${props.item.QualifiedApiName} Setup`}>
+            {
+              setupUrlMap.map((item) => {
+                return <Action.OpenInBrowser title={item.label} url={getSetupUrl(props.item, item.name)} icon={item.icon} />
+              })
+            }
+          </ActionPanel.Section>
+          <ActionPanel.Section title="Copy">
+            <Action.CopyToClipboard
+              title="Copy QualifiedApiName"
+              content={props.item.QualifiedApiName}
+            />
+            <Action.CopyToClipboard
+              title="Copy MasterLabel"
+              content={props.item.MasterLabel}
+            />
+            <Action.CopyToClipboard
+              title="Copy KeyPrefix"
+              content={props.item.KeyPrefix}
+            />
+          </ActionPanel.Section>
+        </ActionPanel>
+      }
     />
   )
 }
@@ -135,15 +205,15 @@ async function getDefaultDevHubUsername() {
   return value as string;
 }
 
-function getSetupUrl(entity: EntityDefinition): string {
-  return `${file.baseUrl}/lightning/setup/ObjectManager/${entity.QualifiedApiName}/Details/view`
+type SetupSubpath = 'FieldsAndRelationships' | 'LightningPages' | 'Details' | 'Layouts' | 'Limits' | 'Triggers' | 'FlowTriggers' | 'ValidationRules'
+function getSetupUrl(entity: EntityDefinition, setupSubpath: SetupSubpath): string {
+  setupSubpath = setupSubpath || 'Details'
+  return `${file.baseUrl}/lightning/setup/ObjectManager/${entity.QualifiedApiName}/${setupSubpath}/view`
 }
 
 async function runQuery(): Promise<QueryResult<EntityDefinition>> {
-  console.log(ConfigAggregator.getValue('defaultusername'));
   const sfdxUsername = await getDefaultDevHubUsername();
-  console.log(`using defaultdevhubusername: ${sfdxUsername}`);
-  const connection = await Connection.create({ authInfo: await AuthInfo.create({ username: 'devhub@marshallvaughn.com' }) });
+  const connection = await Connection.create({ authInfo: await AuthInfo.create({ username: sfdxUsername }) });
   file.baseUrl = connection._baseUrl();
   file.baseUrl = file.baseUrl.replace(/.com\/.*/g, '.com')
   return await connection.tooling.query(soqlQuery);
