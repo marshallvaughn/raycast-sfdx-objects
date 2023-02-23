@@ -81,7 +81,9 @@ function RecordListItem(props: { item: EntityDefinition, index: number }) {
     <List.Item
       title={props.item.QualifiedApiName}
       icon={Icon.Box}
-      subtitle='nope'
+      subtitle={props.item.KeyPrefix}
+      id={props.item.DurableId}
+      keywords={[props.item.KeyPrefix, props.item.QualifiedApiName, props.item.DurableId, props.item.DeveloperName, props.item.MasterLabel, props.item.PluralLabel]}
       detail={
         <List.Item.Detail
           markdown={props.item.Description}
