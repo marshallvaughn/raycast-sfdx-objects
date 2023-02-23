@@ -205,7 +205,7 @@ async function getDefaultDevHubUsername() {
 }
 
 type SetupSubpath = 'FieldsAndRelationships' | 'LightningPages' | 'Details' | 'Layouts' | 'Limits' | 'Triggers' | 'FlowTriggers' | 'ValidationRules'
-function getSetupUrl(entity: EntityDefinition, setupSubpath: SetupSubpath): string {
+function getSetupUrl(entity: EntityDefinition, setupSubpath?: SetupSubpath): string {
   setupSubpath = setupSubpath || 'Details'
   return `${file.baseUrl}/lightning/setup/ObjectManager/${entity.QualifiedApiName}/${setupSubpath}/view`
 }
