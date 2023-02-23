@@ -130,6 +130,7 @@ function RecordListItem(props: { item: EntityDefinition, index: number }) {
       accessories={[
         {
           text: props.item.KeyPrefix,
+          // icon: Icon.Key,
           tooltip: `KeyPrefix for ${props.item.QualifiedApiName} SObject`
         }
       ]}
