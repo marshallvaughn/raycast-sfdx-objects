@@ -81,9 +81,15 @@ function RecordListItem(props: { item: EntityDefinition, index: number }) {
     <List.Item
       title={props.item.QualifiedApiName}
       icon={Icon.Box}
-      subtitle={props.item.KeyPrefix}
+      // subtitle={props.item.MasterLabel}
       id={props.item.DurableId}
       keywords={[props.item.KeyPrefix, props.item.QualifiedApiName, props.item.DurableId, props.item.DeveloperName, props.item.MasterLabel, props.item.PluralLabel]}
+      accessories={[
+        {
+          text: props.item.KeyPrefix,
+          tooltip: `KeyPrefix for ${props.item.QualifiedApiName} SObject`
+        }
+      ]}
       detail={
         <List.Item.Detail
           markdown={props.item.Description}
