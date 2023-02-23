@@ -1,9 +1,16 @@
-import { Action, ActionPanel, Icon, List } from "@raycast/api";
+import { Action, ActionPanel, Cache, Icon, List } from "@raycast/api";
 import { useEffect, useState } from "react";
 import { QueryResult, Record } from "jsforce";
 import { AuthInfo, Connection, ConfigAggregator, OrgConfigProperties } from "@salesforce/core";
 
 process.env.SFDX_USE_GENERIC_UNIX_KEYCHAIN = 'true';
+
+const cache = new Cache();
+
+(async function refreshCache() {
+  cache.set("result", JSON.stringify(await runQuery()));
+})();
+
 const file = { baseUrl: '' };
 const fieldKeys = [
   'Id',
@@ -51,10 +58,11 @@ interface State {
 
 export default function Command(): JSX.Element {
   const [state, setState] = useState<State>({});
+  const cached = cache.get('result');
+  const result: QueryResult<EntityDefinition> = cached ? JSON.parse(cached) : [];
   useEffect(() => {
     async function fetchRecords() {
       try {
-        const result = await runQuery();
         setState({ items: result.records });
       } catch (error) {
         setState({
