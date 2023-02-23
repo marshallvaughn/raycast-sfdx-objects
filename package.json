@@ -1,8 +1,8 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
-  "name": "devthing",
-  "title": "DevThing",
-  "description": "A test util.",
+  "name": "raycast-sfdx-objects",
+  "title": "SFDX Objects",
+  "description": "List EntityDefinitions in an Org using the Tooling API + SFDX CLI.",
   "icon": "command-icon.png",
   "author": "marshallvaughn",
   "categories": [
@@ -12,9 +12,9 @@
   "commands": [
     {
       "name": "index",
-      "title": "TEST THIS",
-      "subtitle": "Subtitle goes here",
-      "description": "Template for showing a static list and a detail view",
+      "title": "SFDX Objects",
+      "subtitle": "List SObjects in an SFDX Org",
+      "description": "List EntityDefinitions in an Org using the Tooling API + SFDX CLI.",
       "mode": "view"
     }
   ],
