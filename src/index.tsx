@@ -31,6 +31,7 @@ interface EntityDefinition extends Record {
   DurableId: string;
   EditDefinitionUrl: string;
   EditUrl: string;
+  NewUrl: string;
   DetailUrl: string;
   MasterLabel: string;
   NamespacePrefix: string;
@@ -112,7 +113,7 @@ function RecordListItem(props: { item: EntityDefinition, index: number }) {
 
               <List.Item.Detail.Metadata.Label title="DetailUrl" text={props.item.DetailUrl || '–'} />
               <List.Item.Detail.Metadata.Label title="EditUrl" text={props.item.EditUrl || '–'} />
-              <List.Item.Detail.Metadata.Label title="NewUrl" text={getSetupUrl(props.item) || '–'} />
+              <List.Item.Detail.Metadata.Label title="NewUrl" text={props.item.NewUrl || '–'} />
             </List.Item.Detail.Metadata>
           }
         />
