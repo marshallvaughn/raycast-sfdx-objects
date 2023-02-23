@@ -65,8 +65,6 @@ export default function Command(): JSX.Element {
     fetchRecords();
   }, []);
 
-  console.log(state.items + ' ' + state.error);
-
   return (
     <List isLoading={!state.items && !state.error} isShowingDetail={true}>
       {state.items?.map((item, index) => (
