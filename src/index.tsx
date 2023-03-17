@@ -1,9 +1,12 @@
-import { Action, ActionPanel, Icon, List } from "@raycast/api";
+import { Action, ActionPanel, Icon, List, Cache } from "@raycast/api";
 import { useEffect, useState } from "react";
-import { QueryResult, Record } from "jsforce";
+import { QueryResult } from "jsforce";
 import { AuthInfo, Connection, ConfigAggregator, OrgConfigProperties } from "@salesforce/core";
+import { EntityDefinition, State, SetupUrlMapItem } from "./types";
 
 process.env.SFDX_USE_GENERIC_UNIX_KEYCHAIN = 'true';
+
+const cache = new Cache();
 
 const file = { baseUrl: '' };
 const fieldKeys = [
@@ -22,45 +25,31 @@ const fieldKeys = [
   'NamespacePrefix',
   'PluralLabel'
 ];
-interface EntityDefinition extends Record {
-  Id: string;
-  KeyPrefix: string | '–';
-  Description: string;
-  DeveloperName: string;
-  QualifiedApiName: string;
-  IsCustomizable: string;
-  DurableId: string;
-  EditDefinitionUrl: string;
-  EditUrl: string;
-  NewUrl: string;
-  DetailUrl: string;
-  MasterLabel: string;
-  NamespacePrefix: string;
-  PluralLabel: string;
-}
+
 const soqlLimit = 500;
 const soqlQuery = `SELECT ${fieldKeys.join(', ')} 
 FROM EntityDefinition 
 WHERE IsLayoutable = TRUE
 ORDER BY QualifiedApiName, KeyPrefix, NamespacePrefix LIMIT ${soqlLimit}`;
 
-
-interface State {
-  items?: EntityDefinition[];
-  error?: Error;
-}
-
 export default function Command(): JSX.Element {
   const [state, setState] = useState<State>({});
   useEffect(() => {
     async function fetchRecords() {
-      try {
-        const result = await runQuery();
+      if (cache.isEmpty) {
+        try {
+          const result = await runQuery();
+          setState({ items: result.records });
+        } catch (error) {
+          setState({
+            error: error instanceof Error ? error : new Error("Something went wrong")
+          })
+        }
+      } else {
+        const cached = cache.get("items");
+        const result: QueryResult<EntityDefinition> = cached ? JSON.parse(cached) : {};
+        console.log(cached);
         setState({ items: result.records });
-      } catch (error) {
-        setState({
-          error: error instanceof Error ? error : new Error("Something went wrong")
-        })
       }
     }
     fetchRecords();
@@ -73,12 +62,6 @@ export default function Command(): JSX.Element {
       ))}
     </List>
   );
-}
-
-interface SetupUrlMapItem {
-  name: SetupSubpath;
-  label: string;
-  icon: Icon;
 }
 
 const setupUrlMap: SetupUrlMapItem[] = [
@@ -216,5 +199,6 @@ async function runQuery(): Promise<QueryResult<EntityDefinition>> {
   const connection = await Connection.create({ authInfo: await AuthInfo.create({ username: sfdxUsername }) });
   file.baseUrl = connection._baseUrl();
   file.baseUrl = file.baseUrl.replace(/.com\/.*/g, '.com')
+  cache.set("items", JSON.stringify(await connection.tooling.query(soqlQuery)));
   return await connection.tooling.query(soqlQuery);
 }
