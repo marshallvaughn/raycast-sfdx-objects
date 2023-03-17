@@ -2,7 +2,7 @@ import { Action, ActionPanel, Icon, List, Cache } from "@raycast/api";
 import { useEffect, useState } from "react";
 import { QueryResult } from "jsforce";
 import { AuthInfo, Connection, ConfigAggregator, OrgConfigProperties } from "@salesforce/core";
-import { EntityDefinition, State, SetupUrlMapItem } from "./types";
+import { EntityDefinition, State, SetupUrlMapItem, SetupSubpath } from "./types";
 
 process.env.SFDX_USE_GENERIC_UNIX_KEYCHAIN = 'true';
 
@@ -184,21 +184,41 @@ function RecordListItem(props: { item: EntityDefinition, index: number }) {
 }
 
 async function getDefaultDevHubUsername() {
-  const { value } = (await ConfigAggregator.create()).getInfo(OrgConfigProperties.TARGET_DEV_HUB);
-  return value as string;
+  const cachedUsername = cache.get("username");
+  if (!cachedUsername) {
+    const { value } = (await ConfigAggregator.create()).getInfo(OrgConfigProperties.TARGET_DEV_HUB);
+    cache.set("username", value as string);
+    return value as string;
+  } else {
+    return cachedUsername;
+  }
 }
 
-type SetupSubpath = 'FieldsAndRelationships' | 'LightningPages' | 'Details' | 'Layouts' | 'Limits' | 'Triggers' | 'FlowTriggers' | 'ValidationRules'
 function getSetupUrl(entity: EntityDefinition, setupSubpath?: SetupSubpath): string {
   setupSubpath = setupSubpath || 'Details'
   return `${file.baseUrl}/lightning/setup/ObjectManager/${entity.QualifiedApiName}/${setupSubpath}/view`
 }
 
+async function getConnection(): Promise<Connection> {
+  const cachedConnection = cache.get("connection");
+  if (!cachedConnection) {
+    const sfdxUsername = await getDefaultDevHubUsername();
+    const connection: Connection = await Connection.create({ authInfo: await AuthInfo.create({ username: sfdxUsername }) });
+    cache.set("connection", JSON.stringify(connection));
+    return connection;
+  } else {
+    return JSON.parse(cachedConnection) as Connection;
+  }
+}
+
 async function runQuery(): Promise<QueryResult<EntityDefinition>> {
-  const sfdxUsername = await getDefaultDevHubUsername();
-  const connection = await Connection.create({ authInfo: await AuthInfo.create({ username: sfdxUsername }) });
+  const connection: Connection = await getConnection();
+  // const sfdxUsername = await getDefaultDevHubUsername();
+  // const connection = await Connection.create({ authInfo: await AuthInfo.create({ username: sfdxUsername }) });
+  // cache.set("connection", JSON.stringify(connection));
   file.baseUrl = connection._baseUrl();
   file.baseUrl = file.baseUrl.replace(/.com\/.*/g, '.com')
-  cache.set("items", JSON.stringify(await connection.tooling.query(soqlQuery)));
+  const response = await connection.tooling.query(soqlQuery);
+  cache.set("items", JSON.stringify(response));
   return await connection.tooling.query(soqlQuery);
 }
