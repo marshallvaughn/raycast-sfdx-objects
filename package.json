@@ -39,6 +39,6 @@
     "fix-lint": "ray lint --fix",
     "lint": "ray lint",
     "publish": "ray publish",
-    "format": "prettier -w ./src/**/*.{js,jsx,ts,tsx}"
+    "format": "prettier -w ./src/**/*.{ts,tsx}"
   }
 }

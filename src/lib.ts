@@ -18,12 +18,6 @@ import { EntityDefinition } from "./types";
 //   }
 // }
 
-
-
-
-
-
-
 // async function createConnection(username: string): Promise<Connection> {
 //   const authInfo = await getAuthInfo(username);
 //   return await Connection.create({
@@ -31,15 +25,11 @@ import { EntityDefinition } from "./types";
 //   });
 // }
 
-
-
 // async function query(soql: string, connection?: Connection): Promise<QueryResult<Record>> {
 //   connection = connection || (await getConnection());
 //   const queryResult = await connection.tooling.query(soql);
 //   return queryResult;
 // }
-
-
 
 // async function getConnectionAgain(cache: Cache): Promise<Connection> {
 //   const cachedConnection = cache.get("connection");

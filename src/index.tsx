@@ -37,26 +37,33 @@ export default function Command(): JSX.Element {
   const [state, setState] = useState<State>({});
   useEffect(() => {
     async function fetchRecords() {
-      if (cache.isEmpty) {
-        try {
-          console.log('trying');
-          const username = await getDefaultDevHubUsername();
-          const authInfo = await getAuthInfo(username);
-          const connection = await getConnection(authInfo);
-          const result = await getEntityDefinitions(connection);
-          setState({ items: result.records });
-        } catch (error) {
-          setState({
-            error: error instanceof Error ? error : new Error("Something went wrong"),
-          });
-        }
-      } else {
-        console.log('tring cached');
-        const cached = cache.get("response");
-        const result: QueryResult<EntityDefinition> = cached ? JSON.parse(cached) : {};
-        console.log(`cc is: ${cached}`);
-        setState({ items: result.records });
-      }
+      const username = await getDefaultDevHubUsername();
+      // if (cache.isEmpty) {
+      //   try {
+      //     console.log("trying");
+      //     const username = await getDefaultDevHubUsername();
+      //     const authInfo = await getAuthInfo(username);
+      //     const connection = await getConnection(authInfo);
+      //     const result = await getEntityDefinitions(connection);
+      //     setState({ items: result.records });
+      //   } catch (error) {
+      //     setState({
+      //       error: error instanceof Error ? error : new Error("Something went wrong"),
+      //     });
+      //   }
+      // } else {
+      //   try {
+      //     console.log("tring cached");
+      //     const cached = cache.get("response");
+      //     const result: QueryResult<EntityDefinition> = cached ? JSON.parse(cached) : {};
+      //     console.log(`cc is: ${cached}`);
+      //     setState({ items: result.records });
+      //   } catch (error) {
+      //     setState({
+      //       error: error instanceof Error ? error : new Error("Something went wrong"),
+      //     });
+      //   }
+      // }
     }
     fetchRecords();
   }, []);
@@ -225,8 +232,6 @@ function getSetupUrl(entity: EntityDefinition, setupSubpath?: SetupSubpath): str
 //     return JSON.parse(cachedConnection) as Connection;
 //   }
 // }
-
-
 
 // async function getAuthInfo(username: string): Promise<AuthInfo> {
 //   if (cache.has("authInfo")) {
