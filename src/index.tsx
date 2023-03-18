@@ -7,8 +7,6 @@ import { getEntityDefinitions } from "./lib";
 
 process.env.SFDX_USE_GENERIC_UNIX_KEYCHAIN = "true";
 
-const connection = Connection.create({ authInfo: AuthInfo.create({ username: getDefaultDevHubUsername() }) });
-
 const cache = new Cache();
 console.log("Starting...");
 
@@ -41,8 +39,11 @@ export default function Command(): JSX.Element {
     async function fetchRecords() {
       if (cache.isEmpty) {
         try {
-          console.log('trying')
-          const result = await runQuery();
+          console.log('trying');
+          const username = await getDefaultDevHubUsername();
+          const authInfo = await getAuthInfo(username);
+          const connection = await getConnection(authInfo);
+          const result = await getEntityDefinitions(connection);
           setState({ items: result.records });
         } catch (error) {
           setState({
@@ -50,7 +51,7 @@ export default function Command(): JSX.Element {
           });
         }
       } else {
-        console.log('tring cached')
+        console.log('tring cached');
         const cached = cache.get("response");
         const result: QueryResult<EntityDefinition> = cached ? JSON.parse(cached) : {};
         console.log(`cc is: ${cached}`);
@@ -210,20 +211,20 @@ function getSetupUrl(entity: EntityDefinition, setupSubpath?: SetupSubpath): str
 //   // }
 // }
 
-async function getConnectionAgain(): Promise<Connection> {
-  const cachedConnection = cache.get("connection");
-  if (cache.has("connection") && !!cachedConnection) {
-    const sfdxUsername = await getDefaultDevHubUsername();
-    const connection: Connection = await Connection.create({
-      authInfo: await AuthInfo.create({ username: sfdxUsername }),
-    });
-    console.log("Creating new connection.");
-    cache.set("connection", JSON.stringify(connection));
-    return connection;
-  } else {
-    return JSON.parse(cachedConnection) as Connection;
-  }
-}
+// async function getConnectionAgain(): Promise<Connection> {
+//   const cachedConnection = cache.get("connection");
+//   if (cache.has("connection") && !!cachedConnection) {
+//     const sfdxUsername = await getDefaultDevHubUsername();
+//     const connection: Connection = await Connection.create({
+//       authInfo: await AuthInfo.create({ username: sfdxUsername }),
+//     });
+//     console.log("Creating new connection.");
+//     cache.set("connection", JSON.stringify(connection));
+//     return connection;
+//   } else {
+//     return JSON.parse(cachedConnection) as Connection;
+//   }
+// }
 
 
 
@@ -277,7 +278,7 @@ async function getConnectionAgain(): Promise<Connection> {
 
 async function runQuery(): Promise<QueryResult<EntityDefinition>> {
   console.log("Running query.");
-  const connection: Connection = await getConnectionAgain();
+  const connection: Connection = await getConnection();
   // cache.set("baseUrl", connection._baseUrl().replace(/.com\/.*/g, ".com"));
   const response: QueryResult<EntityDefinition> = await connection.tooling.query(soqlQuery);
   cache.set("response", JSON.stringify(response));
@@ -331,7 +332,7 @@ async function getAuthInfo(username?: string): Promise<AuthInfo> {
  * @description Returns a Connection object, preferably a cached one
  * @param {string} username The username to use to create or get the Connection object
  */
-async function getConnection(cache: Cache, authInfo?: AuthInfo): Promise<Connection> {
+async function getConnection(authInfo: AuthInfo): Promise<Connection> {
   authInfo = authInfo || (await getAuthInfo());
   const cachedConnection = cache.get("connection");
   console.log(`cachedConnection: ${cachedConnection?.toString()}`);
@@ -356,11 +357,9 @@ async function getConnection(cache: Cache, authInfo?: AuthInfo): Promise<Connect
 
 /**
  * @description Get a QueryResult object for EntityDefinitions
- * @param connection The connection to use for the query
- * @param query
- * @returns
+ * @returns {Promise<QueryResult<EntityDefinition>>} The query result
  */
-async function getEntityDefinitions(cache: Cache): Promise<QueryResult<EntityDefinition>> {
+async function getEntityDefinitions(connection: Connection): Promise<QueryResult<EntityDefinition>> {
   console.log("querying...");
   const selectFields = [
     "Id",
@@ -381,6 +380,5 @@ async function getEntityDefinitions(cache: Cache): Promise<QueryResult<EntityDef
   const soqlQuery = `SELECT ${selectFields.join(
     ", "
   )} FROM EntityDefinition WHERE IsLayoutable = TRUE ORDER BY QualifiedApiName, KeyPrefix, NamespacePrefix LIMIT 1000`;
-  const connection = await getConnectionAgain(cache);
   return await connection.tooling.query<EntityDefinition>(soqlQuery);
 }
