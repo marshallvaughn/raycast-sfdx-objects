@@ -330,7 +330,7 @@ function FieldDefinitionListItem(props: { item: FieldDefinition; index: number }
   return (
     <List.Item
       title={props.item.QualifiedApiName}
-      icon={Icon.Text}
+      icon={Icon.ShortParagraph}
       detail={
         <List.Item.Detail
           metadata={
