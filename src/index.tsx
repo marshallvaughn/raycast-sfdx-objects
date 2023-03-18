@@ -3,12 +3,13 @@ import { useEffect, useState } from "react";
 import { QueryResult } from "jsforce";
 import { AuthInfo, Connection, ConfigAggregator, OrgConfigProperties } from "@salesforce/core";
 import { EntityDefinition, State, SetupUrlMapItem, SetupSubpath } from "./types";
+import { getAuthInfo, getConnection } from "./lib";
 
 process.env.SFDX_USE_GENERIC_UNIX_KEYCHAIN = "true";
 
 const cache = new Cache();
+console.log("Starting...");
 
-const file = { baseUrl: "" };
 const fieldKeys = [
   "Id",
   "KeyPrefix",
@@ -36,9 +37,9 @@ export default function Command(): JSX.Element {
   const [state, setState] = useState<State>({});
   useEffect(() => {
     async function fetchRecords() {
-      if (cache.isEmpty) {
+      if (cache.has("response") === false) {
         try {
-          const result = await runQuery();
+          const result = await getSchema();
           setState({ items: result.records });
         } catch (error) {
           setState({
@@ -46,10 +47,10 @@ export default function Command(): JSX.Element {
           });
         }
       } else {
-        const cached = cache.get("items");
-        const result: QueryResult<EntityDefinition> = cached ? JSON.parse(cached) : {};
-        console.log(cached);
-        setState({ items: result.records });
+        const cachedResponse = cache.get("response");
+        const response: QueryResult<EntityDefinition> = cachedResponse ? JSON.parse(cachedResponse) : {};
+        console.log(`cached here is: ${cachedResponse}`);
+        setState({ items: response.records });
       }
     }
     fetchRecords();
@@ -184,37 +185,65 @@ function RecordListItem(props: { item: EntityDefinition; index: number }) {
   );
 }
 
-async function getDefaultDevHubUsername() {
-  const cachedUsername = cache.get("username");
-  if (!cachedUsername) {
-    const { value } = (await ConfigAggregator.create()).getInfo(OrgConfigProperties.TARGET_DEV_HUB);
-    cache.set("username", value as string);
-    return value as string;
-  } else {
-    return cachedUsername;
-  }
-}
-
 function getSetupUrl(entity: EntityDefinition, setupSubpath?: SetupSubpath): string {
   setupSubpath = setupSubpath || "Details";
-  return `${file.baseUrl}/lightning/setup/ObjectManager/${entity.QualifiedApiName}/${setupSubpath}/view`;
+  const baseUrl = cache.get("baseUrl");
+  console.log(baseUrl);
+  return `${baseUrl}/lightning/setup/ObjectManager/${entity.QualifiedApiName}/${setupSubpath}/view`;
 }
 
-async function getConnection(): Promise<Connection> {
-  const cachedConnection = cache.get("connection");
-  if (!cachedConnection) {
-    const sfdxUsername = await getDefaultDevHubUsername();
-    const connection: Connection = await Connection.create({
-      authInfo: await AuthInfo.create({ username: sfdxUsername }),
-    });
-    cache.set("connection", JSON.stringify(connection));
-    return connection;
-  } else {
-    return JSON.parse(cachedConnection) as Connection;
-  }
-}
+// async function getDefaultDevHubUsername() {
+//   if (!cache.has("username")) {
+//     console.log("No cached username found. Making a new one.");
+//     const { value } = (await ConfigAggregator.create()).getInfo(OrgConfigProperties.TARGET_DEV_HUB);
+//     cache.set("username", value as string);
+//     return value as string;
+//   } else {
+//     console.log("Found cached username.");
+//     return cache.get("username");
+//   }
+// }
+
+// async function getAuthInfo(username: string): Promise<AuthInfo> {
+//   if (cache.has("authInfo")) {
+//     const cachedAuthInfo = cache.get("authInfo");
+//     if (JSON.parse(cachedAuthInfo) instanceof AuthInfo) {
+//       return JSON.parse(cachedAuthInfo) as AuthInfo;
+//     }
+//   } else {
+//     const authInfo = await AuthInfo.create({
+//       username: username,
+//     });
+//     cache.set("authInfo", JSON.stringify(authInfo));
+//     return authInfo;
+//   }
+// }
+
+// async function getConnection(): Promise<Connection> {
+//   console.log("Getting connection.");
+//   const cachedConnection = cache.get("connection");
+//   if (!cache.has("connection")) {
+//     console.log("No cached connection found. Making a new one.");
+//     const sfdxUsername: string = (await getDefaultDevHubUsername()) || "";
+//     console.log(`Found username: ${sfdxUsername}`);
+//     console.log("Getting authInfo.");
+//     // const auth = await AuthInfo.create({ username: sfdxUsername });
+//     // console.log(`Created authInfo: ${JSON.stringify(auth, null, 2)}`);
+//     const connection: Connection = await Connection.create({
+//       authInfo: await getAuthInfo(sfdxUsername),
+//     });
+//     console.log(`Found username: ${sfdxUsername}`);
+//     cache.set("connection", JSON.stringify(connection));
+//     console.log(JSON.stringify(connection));
+//     return connection;
+//   } else {
+//     console.log("Found cached connection.");
+//     return cachedConnection ? JSON.parse(cachedConnection) : {};
+//   }
+// }
 
 async function getSchema(): Promise<QueryResult<EntityDefinition>> {
+  console.log("Getting schema.");
   const cachedResponse = cache.get("response");
   if (!cachedResponse) {
     return await runQuery();
@@ -224,10 +253,11 @@ async function getSchema(): Promise<QueryResult<EntityDefinition>> {
 }
 
 async function runQuery(): Promise<QueryResult<EntityDefinition>> {
+  console.log("Running query.");
   const connection: Connection = await getConnection();
-  file.baseUrl = connection._baseUrl();
-  file.baseUrl = file.baseUrl.replace(/.com\/.*/g, ".com");
-  const response = await connection.tooling.query(soqlQuery);
+  cache.set("baseUrl", connection._baseUrl().replace(/.com\/.*/g, ".com"));
+  const response: QueryResult<EntityDefinition> = await connection.tooling.query(soqlQuery);
   cache.set("response", JSON.stringify(response));
-  return await connection.tooling.query(soqlQuery);
+  console.log("Query complete.");
+  return response;
 }
