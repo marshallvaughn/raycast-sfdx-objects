@@ -3,13 +3,13 @@ import { useEffect, useState } from "react";
 import { QueryResult } from "jsforce";
 import { AuthInfo, Connection, ConfigAggregator, OrgConfigProperties } from "@salesforce/core";
 import { EntityDefinition, State, SetupUrlMapItem, SetupSubpath } from "./types";
-import { getEntityDefinitions } from "./lib";
 
 process.env.SFDX_USE_GENERIC_UNIX_KEYCHAIN = "true";
 
 const cache = new Cache();
 console.log("Starting...");
 
+const file = { baseUrl: "" };
 const fieldKeys = [
   "Id",
   "KeyPrefix",
@@ -37,7 +37,7 @@ export default function Command(): JSX.Element {
   const [state, setState] = useState<State>({});
   useEffect(() => {
     async function fetchRecords() {
-      const username = await getDefaultDevHubUsername();
+      const connection = await getConnection();
       // if (cache.isEmpty) {
       //   try {
       //     console.log("trying");
@@ -197,12 +197,25 @@ function RecordListItem(props: { item: EntityDefinition; index: number }) {
   );
 }
 
+async function runQuery(): Promise<QueryResult<EntityDefinition>> {
+  const sfdxUsername = await getDefaultDevHubUsername();
+  const connection = await Connection.create({ authInfo: await AuthInfo.create({ username: sfdxUsername }) });
+  file.baseUrl = connection._baseUrl();
+  file.baseUrl = file.baseUrl.replace(/.com\/.*/g, ".com");
+  return await connection.tooling.query(soqlQuery);
+}
+
 function getSetupUrl(entity: EntityDefinition, setupSubpath?: SetupSubpath): string {
   setupSubpath = setupSubpath || "Details";
   const baseUrl = cache.get("baseUrl");
   console.log(baseUrl);
   return `${baseUrl}/lightning/setup/ObjectManager/${entity.QualifiedApiName}/${setupSubpath}/view`;
 }
+
+// function getSetupUrl(entity: EntityDefinition, setupSubpath?: SetupSubpath): string {
+//   setupSubpath = setupSubpath || "Details";
+//   return `${file.baseUrl}/lightning/setup/ObjectManager/${entity.QualifiedApiName}/${setupSubpath}/view`;
+// }
 
 // async function getDefaultDevHubUsername() {
 //   const { value } = (await ConfigAggregator.create()).getInfo(OrgConfigProperties.TARGET_DEV_HUB);
@@ -281,28 +294,33 @@ function getSetupUrl(entity: EntityDefinition, setupSubpath?: SetupSubpath): str
 //   }
 // }
 
-async function runQuery(): Promise<QueryResult<EntityDefinition>> {
-  console.log("Running query.");
-  const connection: Connection = await getConnection();
-  // cache.set("baseUrl", connection._baseUrl().replace(/.com\/.*/g, ".com"));
-  const response: QueryResult<EntityDefinition> = await connection.tooling.query(soqlQuery);
-  cache.set("response", JSON.stringify(response));
-  console.log("Query complete.");
-  return response;
-}
+// async function runQuery(): Promise<QueryResult<EntityDefinition>> {
+//   console.log("Running query.");
+//   const connection: Connection = await getConnection();
+//   // cache.set("baseUrl", connection._baseUrl().replace(/.com\/.*/g, ".com"));
+//   const response: QueryResult<EntityDefinition> = await connection.tooling.query(soqlQuery);
+//   cache.set("response", JSON.stringify(response));
+//   console.log("Query complete.");
+//   return response;
+// }
 
 async function getDefaultDevHubUsername(): Promise<string> {
-  const cachedUsername = cache.get("username");
-  if (!cachedUsername) {
-    console.log("No cached username found. Making a new one.");
-    const { value } = (await ConfigAggregator.create()).getInfo(OrgConfigProperties.TARGET_DEV_HUB);
-    cache.set("username", value as string);
-    return value as string;
-  } else {
-    console.log(`Found cached username: ${cachedUsername}`);
-    return cachedUsername;
-  }
+  const { value } = (await ConfigAggregator.create()).getInfo(OrgConfigProperties.TARGET_DEV_HUB);
+  return value as string;
 }
+
+// async function getDefaultDevHubUsername(): Promise<string> {
+//   const cachedUsername = cache.get("username");
+//   if (!cachedUsername) {
+//     console.log("No cached username found. Making a new one.");
+//     const { value } = (await ConfigAggregator.create()).getInfo(OrgConfigProperties.TARGET_DEV_HUB);
+//     cache.set("username", value as string);
+//     return value as string;
+//   } else {
+//     console.log(`Found cached username: ${cachedUsername}`);
+//     return cachedUsername;
+//   }
+// }
 
 /**
  * @description Creates and returns an AuthInfo object
@@ -337,23 +355,14 @@ async function getAuthInfo(username?: string): Promise<AuthInfo> {
  * @description Returns a Connection object, preferably a cached one
  * @param {string} username The username to use to create or get the Connection object
  */
-async function getConnection(authInfo: AuthInfo): Promise<Connection> {
-  authInfo = authInfo || (await getAuthInfo());
+async function getConnection(): Promise<Connection> {
   const cachedConnection = cache.get("connection");
-  console.log(`cachedConnection: ${cachedConnection?.toString()}`);
   if (cache.has("connection") && !!cachedConnection) {
-    console.log("Enterred this");
-    const cachedConnectionObj = JSON.parse(cachedConnection) as Connection;
-    console.log(`found cached connection for: ${cachedConnectionObj.getUsername()}`);
-    return cachedConnectionObj;
+    return JSON.parse(cachedConnection) as Connection;
   } else {
-    console.log("nawp");
-    // console.log(`creating connection for: ${username}`);
-    // const authInfo = await getAuthInfo();
-    console.log(`fetched authInfo: ${JSON.stringify(authInfo)}`);
-    console.log("-----------------");
+    const username = await getDefaultDevHubUsername();
+    const authInfo = await new AuthInfo({ username: username });
     const connection: Connection = await Connection.create({ authInfo: authInfo });
-    console.log(`connection: ${JSON.stringify(connection)}`);
     cache.set("connection", JSON.stringify(connection));
     console.log(cache.get("connection"));
     return connection;
