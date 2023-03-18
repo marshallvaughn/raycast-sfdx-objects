@@ -2,20 +2,20 @@ import { Record } from "jsforce";
 import { Icon } from "@raycast/api";
 
 export interface EntityDefinition extends Record {
-  Id: string;
-  KeyPrefix: string | "–";
   Description: string;
+  DetailUrl: string;
   DeveloperName: string;
-  QualifiedApiName: string;
-  IsCustomizable: string;
   DurableId: string;
   EditDefinitionUrl: string;
   EditUrl: string;
-  NewUrl: string;
-  DetailUrl: string;
+  Id: string;
+  IsCustomizable: string;
+  KeyPrefix: string | "–";
   MasterLabel: string;
   NamespacePrefix: string;
+  NewUrl: string;
   PluralLabel: string;
+  QualifiedApiName: string;
 }
 
 export interface State {

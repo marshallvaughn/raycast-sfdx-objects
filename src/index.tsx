@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { QueryResult } from "jsforce";
 import { AuthInfo, Connection, ConfigAggregator, OrgConfigProperties } from "@salesforce/core";
 import { EntityDefinition, State, SetupUrlMapItem, SetupSubpath } from "./types";
-import { getAuthInfo, getConnection } from "./lib";
+import { getEntityDefinitions } from "./lib";
 
 process.env.SFDX_USE_GENERIC_UNIX_KEYCHAIN = "true";
 
@@ -37,21 +37,15 @@ export default function Command(): JSX.Element {
   const [state, setState] = useState<State>({});
   useEffect(() => {
     async function fetchRecords() {
-      if (cache.has("response") === false) {
         try {
-          const result = await getSchema();
+          const result = await getEntityDefinitions();
+          console.log('got result.');
           setState({ items: result.records });
         } catch (error) {
           setState({
             error: error instanceof Error ? error : new Error("Something went wrong"),
           });
         }
-      } else {
-        const cachedResponse = cache.get("response");
-        const response: QueryResult<EntityDefinition> = cachedResponse ? JSON.parse(cachedResponse) : {};
-        console.log(`cached here is: ${cachedResponse}`);
-        setState({ items: response.records });
-      }
     }
     fetchRecords();
   }, []);
@@ -242,22 +236,22 @@ function getSetupUrl(entity: EntityDefinition, setupSubpath?: SetupSubpath): str
 //   }
 // }
 
-async function getSchema(): Promise<QueryResult<EntityDefinition>> {
-  console.log("Getting schema.");
-  const cachedResponse = cache.get("response");
-  if (!cachedResponse) {
-    return await runQuery();
-  } else {
-    return JSON.parse(cachedResponse) as QueryResult<EntityDefinition>;
-  }
-}
+// async function getSchema(): Promise<QueryResult<EntityDefinition>> {
+//   console.log("Getting schema.");
+//   const cachedResponse = cache.get("response");
+//   if (!cachedResponse) {
+//     return await runQuery();
+//   } else {
+//     return JSON.parse(cachedResponse) as QueryResult<EntityDefinition>;
+//   }
+// }
 
-async function runQuery(): Promise<QueryResult<EntityDefinition>> {
-  console.log("Running query.");
-  const connection: Connection = await getConnection();
-  cache.set("baseUrl", connection._baseUrl().replace(/.com\/.*/g, ".com"));
-  const response: QueryResult<EntityDefinition> = await connection.tooling.query(soqlQuery);
-  cache.set("response", JSON.stringify(response));
-  console.log("Query complete.");
-  return response;
-}
+// async function runQuery(): Promise<QueryResult<EntityDefinition>> {
+//   console.log("Running query.");
+//   const connection: Connection = await getConnection();
+//   cache.set("baseUrl", connection._baseUrl().replace(/.com\/.*/g, ".com"));
+//   const response: QueryResult<EntityDefinition> = await connection.tooling.query(soqlQuery);
+//   cache.set("response", JSON.stringify(response));
+//   console.log("Query complete.");
+//   return response;
+// }
