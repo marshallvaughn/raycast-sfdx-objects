@@ -1,69 +1,41 @@
-import { Action, ActionPanel, Icon, List, Cache } from "@raycast/api";
+import { Action, ActionPanel, Icon, List, Cache, Detail, showToast, Toast } from "@raycast/api";
 import { useEffect, useState } from "react";
 import { QueryResult } from "jsforce";
 import { AuthInfo, Connection, ConfigAggregator, OrgConfigProperties } from "@salesforce/core";
-import { EntityDefinition, State, SetupUrlMapItem, SetupSubpath } from "./types";
+import { EntityDefinition, FieldDefinition, State, SetupUrlMapItem, SetupSubpath } from "./types";
 
 process.env.SFDX_USE_GENERIC_UNIX_KEYCHAIN = "true";
 
 const cache = new Cache();
 console.log("Starting...");
-
-const file = { baseUrl: "" };
-const fieldKeys = [
-  "Id",
-  "KeyPrefix",
-  "Description",
-  "DeveloperName",
-  "QualifiedApiName",
-  "IsCustomizable",
-  "DurableId",
-  "EditDefinitionUrl",
-  "EditUrl",
-  "NewUrl",
-  "DetailUrl",
-  "MasterLabel",
-  "NamespacePrefix",
-  "PluralLabel",
-];
-
-const soqlLimit = 500;
-const soqlQuery = `SELECT ${fieldKeys.join(", ")} 
-FROM EntityDefinition 
-WHERE IsLayoutable = TRUE
-ORDER BY QualifiedApiName, KeyPrefix, NamespacePrefix LIMIT ${soqlLimit}`;
+let connection: Connection;
 
 export default function Command(): JSX.Element {
   const [state, setState] = useState<State>({});
   useEffect(() => {
     async function fetchRecords() {
-      const connection = await getConnection();
-      // if (cache.isEmpty) {
-      //   try {
-      //     console.log("trying");
-      //     const username = await getDefaultDevHubUsername();
-      //     const authInfo = await getAuthInfo(username);
-      //     const connection = await getConnection(authInfo);
-      //     const result = await getEntityDefinitions(connection);
-      //     setState({ items: result.records });
-      //   } catch (error) {
-      //     setState({
-      //       error: error instanceof Error ? error : new Error("Something went wrong"),
-      //     });
-      //   }
-      // } else {
-      //   try {
-      //     console.log("tring cached");
-      //     const cached = cache.get("response");
-      //     const result: QueryResult<EntityDefinition> = cached ? JSON.parse(cached) : {};
-      //     console.log(`cc is: ${cached}`);
-      //     setState({ items: result.records });
-      //   } catch (error) {
-      //     setState({
-      //       error: error instanceof Error ? error : new Error("Something went wrong"),
-      //     });
-      //   }
-      // }
+      try {
+        console.debug("getting connection");
+        connection = await getConnection();
+        console.log("got connection");
+        let queryResult: QueryResult<EntityDefinition>;
+        const cachedQueryResult = cache.get("queryResult");
+        if (!cachedQueryResult) {
+          console.log("No cached query result, querying");
+          queryResult = await getEntityDefinitionsQueryResult(connection);
+          // queryResult = await connection.tooling.query(soqlQuery);
+          // fieldQueryResult = null;
+          cache.set("queryResult", JSON.stringify(queryResult));
+        } else {
+          console.log("Using cached query result");
+          queryResult = JSON.parse(cachedQueryResult) as QueryResult<EntityDefinition>;
+        }
+        setState({ items: queryResult.records });
+      } catch (error) {
+        setState({
+          error: error instanceof Error ? error : new Error("Something went wrong"),
+        });
+      }
     }
     fetchRecords();
   }, []);
@@ -71,12 +43,46 @@ export default function Command(): JSX.Element {
   return (
     <List isLoading={!state.items && !state.error} isShowingDetail={true}>
       {state.items?.map((item, index) => (
-        <RecordListItem key={item.Id} item={item} index={index} />
+        <EntityDefinitionListItem key={item.Id} item={item as EntityDefinition} index={index} />
       ))}
     </List>
   );
 }
 
+export function FieldList(connection: Connection, entity: EntityDefinition): JSX.Element {
+  const [state, setState] = useState<State>({});
+  useEffect(() => {
+    async function fetchRecords() {
+      const toast = await showToast({
+        style: Toast.Style.Animated,
+        title: "Uploading image",
+      });
+      try {
+        const queryResult: QueryResult<FieldDefinition> = await getFieldDefinitionsQueryResult(connection, entity);
+        toast.title = `Fetched FieldDefinitions for ${entity.QualifiedApiName}`;
+        toast.style = Toast.Style.Success;
+        setState({ items: queryResult.records });
+      } catch (error) {
+        setState({
+          error: error instanceof Error ? error : new Error("Something went wrong"),
+        });
+      }
+    }
+    fetchRecords();
+  }, []);
+
+  return (
+    <List isLoading={!state.items && !state.error} isShowingDetail={true}>
+      {state.items?.map((item, index) => (
+        <FieldDefinitionListItem key={item.Id} item={item as FieldDefinition} index={index} />
+      ))}
+    </List>
+  );
+}
+
+/**
+ * Map for configuration of Setup URLs and actions
+ */
 const setupUrlMap: SetupUrlMapItem[] = [
   {
     name: "Details",
@@ -115,7 +121,50 @@ const setupUrlMap: SetupUrlMapItem[] = [
   },
 ];
 
-function RecordListItem(props: { item: EntityDefinition; index: number }) {
+function EntityDefinitionDetail(props: { item: EntityDefinition }) {
+  useEffect(() => {
+    async function fetchFields() {
+      try {
+        console.debug("getting connection");
+        connection = await getConnection();
+        console.log("got connection");
+        let queryResult: QueryResult<EntityDefinition>;
+        const cachedQueryResult = cache.get("queryResult");
+        if (!cachedQueryResult) {
+          console.log("No cached query result, querying");
+          queryResult = await getEntityDefinitionsQueryResult(connection);
+          // queryResult = await connection.tooling.query(soqlQuery);
+          // fieldQueryResult = null;
+          cache.set("queryResult", JSON.stringify(queryResult));
+        } else {
+          console.log("Using cached query result");
+          queryResult = JSON.parse(cachedQueryResult) as QueryResult<EntityDefinition>;
+        }
+        return queryResult.records;
+      } catch (error) {
+        return error;
+      }
+    }
+    fetchFields();
+  }, []);
+
+  return (
+    <Detail
+      metadata={
+        <Detail.Metadata>
+          <List.Item.Detail.Metadata.Label title="KeyPrefix" text={props.item.KeyPrefix || "–"} />
+        </Detail.Metadata>
+      }
+      actions={
+        <ActionPanel title={"Actions"}>
+          <Action.Push title="Show Fields" icon={Icon.Filter} target={FieldList(connection, props.item)} />
+        </ActionPanel>
+      }
+    />
+  );
+}
+
+function EntityDefinitionListItem(props: { item: EntityDefinition; index: number }) {
   return (
     <List.Item
       title={props.item.QualifiedApiName}
@@ -179,6 +228,13 @@ function RecordListItem(props: { item: EntityDefinition; index: number }) {
       }
       actions={
         <ActionPanel title={"Actions"}>
+          <ActionPanel.Section title="Quick Actions">
+            <Action.Push
+              title="Step into detail"
+              icon={Icon.ArrowRightCircle}
+              target={<EntityDefinitionDetail item={props.item} />}
+            />
+          </ActionPanel.Section>
           <ActionPanel.Section title={`${props.item.QualifiedApiName} Setup`}>
             {setupUrlMap.map((item) => {
               return (
@@ -197,158 +253,125 @@ function RecordListItem(props: { item: EntityDefinition; index: number }) {
   );
 }
 
-async function runQuery(): Promise<QueryResult<EntityDefinition>> {
-  const sfdxUsername = await getDefaultDevHubUsername();
-  const connection = await Connection.create({ authInfo: await AuthInfo.create({ username: sfdxUsername }) });
-  file.baseUrl = connection._baseUrl();
-  file.baseUrl = file.baseUrl.replace(/.com\/.*/g, ".com");
-  return await connection.tooling.query(soqlQuery);
+const entityDefinitionFieldKeys = [
+  "Id",
+  "KeyPrefix",
+  "Description",
+  "DeveloperName",
+  "QualifiedApiName",
+  "IsCustomizable",
+  "DurableId",
+  "EditDefinitionUrl",
+  "EditUrl",
+  "NewUrl",
+  "DetailUrl",
+  "MasterLabel",
+  "NamespacePrefix",
+  "PluralLabel",
+];
+
+const entityDefinitionSoqlLimit = 1000;
+const entityDefinitionSoqlQuery = `SELECT ${entityDefinitionFieldKeys.join(", ")} 
+FROM EntityDefinition 
+WHERE IsLayoutable = TRUE
+ORDER BY QualifiedApiName, KeyPrefix, NamespacePrefix LIMIT ${entityDefinitionSoqlLimit}`;
+
+async function getEntityDefinitionsQueryResult(connection: Connection): Promise<QueryResult<EntityDefinition>> {
+  return await connection.tooling.query(entityDefinitionSoqlQuery);
 }
 
+const fieldDefinitionFieldKeys = [
+  "Id",
+  "DataType",
+  "ComplianceGroup",
+  "DeveloperName",
+  "DurableId",
+  "ExtraTypeInfo",
+  "Length",
+  "Label",
+  "MasterLabel",
+  "NamespacePrefix",
+  "Precision",
+  "Publisher.Name",
+  "QualifiedApiName",
+  "RelationshipName",
+  "Scale",
+];
+
+// function pushFieldDefinitions(entity: EntityDefinition): Promise<React.ReactElement> {
+//   const queryResult = await getFieldDefinitionsQueryResult(entity);
+//   const items = queryResult.records;
+//   return FieldDefinitionList({ items: items, index: 0 } as any);
+// }
+
+async function getFieldDefinitionsQueryResult(
+  connection: Connection,
+  entity: EntityDefinition
+): Promise<QueryResult<FieldDefinition>> {
+  const fieldDefinitionSoqlQuery = `SELECT ${fieldDefinitionFieldKeys.join(
+    ", "
+  )} FROM FieldDefinition WHERE EntityDefinition.QualifiedApiName = '${entity.QualifiedApiName}'`;
+  const queryResult: QueryResult<FieldDefinition> = await connection.tooling.query(fieldDefinitionSoqlQuery);
+  return queryResult;
+}
+
+// async function FieldDefinitionList(entity: EntityDefinition) {
+//   const items = await getFieldDefinitionsQueryResult(entity);
+//   return (
+//     <List>
+//       {items?.map((item, index) => (
+//         <FieldDefinitionListItem item={item} index={index} />
+//       ))}
+//     </List>
+//   )
+// }
+
+function FieldDefinitionListItem(props: { item: FieldDefinition; index: number }) {
+  return (
+    <List.Item
+      title={props.item.QualifiedApiName}
+      icon={Icon.Text}
+      detail={
+        <List.Item.Detail
+          metadata={
+            <List.Item.Detail.Metadata>
+              <List.Item.Detail.Metadata.Label title="DurableId" text={props.item.DurableId} />
+              <List.Item.Detail.Metadata.Label title="DataType" text={props.item.DataType.replace('( ', '(', /g/)} />
+
+              <List.Item.Detail.Metadata.Separator />
+
+              <List.Item.Detail.Metadata.Label title="QualifiedApiName" text={props.item.QualifiedApiName} />
+              <List.Item.Detail.Metadata.Label title="DeveloperName" text={props.item.DeveloperName} />
+              <List.Item.Detail.Metadata.Label title="MasterLabel" text={props.item.MasterLabel} />
+              <List.Item.Detail.Metadata.Label title="Label" text={props.item.Label} />
+            </List.Item.Detail.Metadata>
+          }
+        />
+      }
+    />
+  );
+}
+
+/**
+ * @description Returns the setup URL for the given EntityDefinition object
+ * @param entity The EntityDefinition object to get setup URLs for
+ * @param setupSubpath The subpath to use for the setup URL, e.g. 'Details', 'FieldsAndRelationships', 'Layouts', 'LightningPages', 'Limits', 'Triggers', 'FlowTriggers', etc.
+ * @returns The setup URL for the given EntityDefinition object
+ */
 function getSetupUrl(entity: EntityDefinition, setupSubpath?: SetupSubpath): string {
   setupSubpath = setupSubpath || "Details";
   const baseUrl = cache.get("baseUrl");
-  console.log(baseUrl);
-  return `${baseUrl}/lightning/setup/ObjectManager/${entity.QualifiedApiName}/${setupSubpath}/view`;
+  // console.log(baseUrl);
+  return `${baseUrl}/lightning/setup / ObjectManager / ${entity.QualifiedApiName} /${setupSubpath}/view`;
 }
 
-// function getSetupUrl(entity: EntityDefinition, setupSubpath?: SetupSubpath): string {
-//   setupSubpath = setupSubpath || "Details";
-//   return `${file.baseUrl}/lightning/setup/ObjectManager/${entity.QualifiedApiName}/${setupSubpath}/view`;
-// }
-
-// async function getDefaultDevHubUsername() {
-//   const { value } = (await ConfigAggregator.create()).getInfo(OrgConfigProperties.TARGET_DEV_HUB);
-//   return value as string;
-//   // if (!cache.has("username")) {
-//   //   console.log("No cached username found. Making a new one.");
-//   //   const { value } = (await ConfigAggregator.create()).getInfo(OrgConfigProperties.TARGET_DEV_HUB);
-//   //   cache.set("username", value as string);
-//   //   return value as string;
-//   // } else {
-//   //   console.log("Found cached username.");
-//   //   return cache.get("username");
-//   // }
-// }
-
-// async function getConnectionAgain(): Promise<Connection> {
-//   const cachedConnection = cache.get("connection");
-//   if (cache.has("connection") && !!cachedConnection) {
-//     const sfdxUsername = await getDefaultDevHubUsername();
-//     const connection: Connection = await Connection.create({
-//       authInfo: await AuthInfo.create({ username: sfdxUsername }),
-//     });
-//     console.log("Creating new connection.");
-//     cache.set("connection", JSON.stringify(connection));
-//     return connection;
-//   } else {
-//     return JSON.parse(cachedConnection) as Connection;
-//   }
-// }
-
-// async function getAuthInfo(username: string): Promise<AuthInfo> {
-//   if (cache.has("authInfo")) {
-//     const cachedAuthInfo = cache.get("authInfo");
-//     if (JSON.parse(cachedAuthInfo) instanceof AuthInfo) {
-//       return JSON.parse(cachedAuthInfo) as AuthInfo;
-//     }
-//   } else {
-//     const authInfo = await AuthInfo.create({
-//       username: username,
-//     });
-//     cache.set("authInfo", JSON.stringify(authInfo));
-//     return authInfo;
-//   }
-// }
-
-// async function getConnection(): Promise<Connection> {
-//   console.log("Getting connection.");
-//   const cachedConnection = cache.get("connection");
-//   if (!cache.has("connection")) {
-//     console.log("No cached connection found. Making a new one.");
-//     const sfdxUsername: string = (await getDefaultDevHubUsername()) || "";
-//     console.log(`Found username: ${sfdxUsername}`);
-//     console.log("Getting authInfo.");
-//     // const auth = await AuthInfo.create({ username: sfdxUsername });
-//     // console.log(`Created authInfo: ${JSON.stringify(auth, null, 2)}`);
-//     const connection: Connection = await Connection.create({
-//       authInfo: await getAuthInfo(sfdxUsername),
-//     });
-//     console.log(`Found username: ${sfdxUsername}`);
-//     cache.set("connection", JSON.stringify(connection));
-//     console.log(JSON.stringify(connection));
-//     return connection;
-//   } else {
-//     console.log("Found cached connection.");
-//     return cachedConnection ? JSON.parse(cachedConnection) : {};
-//   }
-// }
-
-// async function getSchema(): Promise<QueryResult<EntityDefinition>> {
-//   console.log("Getting schema.");
-//   const cachedResponse = cache.get("response");
-//   if (!cachedResponse) {
-//     return await runQuery();
-//   } else {
-//     return JSON.parse(cachedResponse) as QueryResult<EntityDefinition>;
-//   }
-// }
-
-// async function runQuery(): Promise<QueryResult<EntityDefinition>> {
-//   console.log("Running query.");
-//   const connection: Connection = await getConnection();
-//   // cache.set("baseUrl", connection._baseUrl().replace(/.com\/.*/g, ".com"));
-//   const response: QueryResult<EntityDefinition> = await connection.tooling.query(soqlQuery);
-//   cache.set("response", JSON.stringify(response));
-//   console.log("Query complete.");
-//   return response;
-// }
-
+/**
+ * @description Returns the default DevHub username from local sfdx config
+ * @returns {Promise<string>} The DevHub username
+ */
 async function getDefaultDevHubUsername(): Promise<string> {
   const { value } = (await ConfigAggregator.create()).getInfo(OrgConfigProperties.TARGET_DEV_HUB);
   return value as string;
-}
-
-// async function getDefaultDevHubUsername(): Promise<string> {
-//   const cachedUsername = cache.get("username");
-//   if (!cachedUsername) {
-//     console.log("No cached username found. Making a new one.");
-//     const { value } = (await ConfigAggregator.create()).getInfo(OrgConfigProperties.TARGET_DEV_HUB);
-//     cache.set("username", value as string);
-//     return value as string;
-//   } else {
-//     console.log(`Found cached username: ${cachedUsername}`);
-//     return cachedUsername;
-//   }
-// }
-
-/**
- * @description Creates and returns an AuthInfo object
- * @param {string} username
- */
-async function createAuthInfo(username: string): Promise<AuthInfo> {
-  const authInfo = await new AuthInfo({ username: username });
-  console.log(JSON.stringify(authInfo));
-  return authInfo;
-}
-
-/**
- * @description Returns an AuthInfo object, preferably a cached one
- * @param {string} username The username to use to create or get the AuthInfo object
- */
-async function getAuthInfo(username?: string): Promise<AuthInfo> {
-  username = username || (await getDefaultDevHubUsername());
-  const cachedAuthInfo = cache.get("authInfo");
-  if (cachedAuthInfo) {
-    console.log(`found cached authInfo for: ${username}`);
-    console.log(`cachedAuthInfo: ${cachedAuthInfo}`);
-    return JSON.parse(cachedAuthInfo) as AuthInfo;
-  } else {
-    console.log(`creating authInfo for: ${username}`);
-    const authInfo = await createAuthInfo(username);
-    cache.set("authInfo", JSON.stringify(authInfo));
-    return authInfo;
-  }
 }
 
 /**
@@ -356,43 +379,14 @@ async function getAuthInfo(username?: string): Promise<AuthInfo> {
  * @param {string} username The username to use to create or get the Connection object
  */
 async function getConnection(): Promise<Connection> {
-  const cachedConnection = cache.get("connection");
-  if (cache.has("connection") && !!cachedConnection) {
-    return JSON.parse(cachedConnection) as Connection;
-  } else {
-    const username = await getDefaultDevHubUsername();
-    const authInfo = await new AuthInfo({ username: username });
-    const connection: Connection = await Connection.create({ authInfo: authInfo });
-    cache.set("connection", JSON.stringify(connection));
-    console.log(cache.get("connection"));
-    return connection;
+  const sfdxUsername = cache.get("username") || (await getDefaultDevHubUsername());
+  const authInfo = await AuthInfo.create({ username: sfdxUsername });
+  const connection = await Connection.create({ authInfo: authInfo });
+  const cachedBaseUrl = cache.get("baseUrl");
+  if (!cachedBaseUrl) {
+    console.log("No cached baseUrl, setting it now...");
+    cache.set("baseUrl", connection._baseUrl().replace(/.com\/.*/g, ".com"));
+    console.log("baseUrl set");
   }
-}
-
-/**
- * @description Get a QueryResult object for EntityDefinitions
- * @returns {Promise<QueryResult<EntityDefinition>>} The query result
- */
-async function getEntityDefinitions(connection: Connection): Promise<QueryResult<EntityDefinition>> {
-  console.log("querying...");
-  const selectFields = [
-    "Id",
-    "KeyPrefix",
-    "Description",
-    "DeveloperName",
-    "QualifiedApiName",
-    "IsCustomizable",
-    "DurableId",
-    "EditDefinitionUrl",
-    "EditUrl",
-    "NewUrl",
-    "DetailUrl",
-    "MasterLabel",
-    "NamespacePrefix",
-    "PluralLabel",
-  ];
-  const soqlQuery = `SELECT ${selectFields.join(
-    ", "
-  )} FROM EntityDefinition WHERE IsLayoutable = TRUE ORDER BY QualifiedApiName, KeyPrefix, NamespacePrefix LIMIT 1000`;
-  return await connection.tooling.query<EntityDefinition>(soqlQuery);
+  return connection;
 }

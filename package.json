@@ -19,7 +19,8 @@
     }
   ],
   "dependencies": {
-    "@raycast/api": "^1.47.3"
+    "@raycast/api": "^1.47.3",
+    "@raycast/utils": "^1.5.2"
   },
   "devDependencies": {
     "@salesforce/core": "^3.33.4",

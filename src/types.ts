@@ -18,8 +18,20 @@ export interface EntityDefinition extends Record {
   QualifiedApiName: string;
 }
 
+export interface FieldDefinition extends Record {
+  Id: string;
+  DeveloperName: string;
+  Label: string;
+  Type: string;
+  Length: number;
+  Precision: number;
+  Scale: number;
+  QualifiedApiName: string;
+  IsCustom: boolean;
+}
+
 export interface State {
-  items?: EntityDefinition[];
+  items?: EntityDefinition[] | FieldDefinition[];
   error?: Error;
 }
 
